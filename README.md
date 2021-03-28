@@ -11,6 +11,8 @@ I've noticed that on occasion, eventual consistency can result in things seeming
 ## CloudWatch Log Group
 The Terraform included in this repo is entirely self-contained, so be aware that `terraform destroy` will remove the CloudWatch Log Group that is created, meaning that any log streams in the log group will also vanish. So access those log streams before removing the resources, or tinker with the configuration and move the log group out of the [EC2 main.tf](./modules/EC2/main.tf "EC2 main.tf") file as you wish.
 
+Note that as of today, the Amazon Linux 2 image (see [release notes](https://aws.amazon.com/amazon-linux-2/release-notes/ "Amazon Linux 2 Release Notes")) is pre-installed with v3.0.161.0-1 of the amazon-ssm-agent, which does not support the real time streaming as that [didn't arrive until v3.0.356.0](https://github.com/aws/amazon-ssm-agent/blob/master/RELEASENOTES.md "SSM Agent Release Notes") which is a shame... ¯\_(ツ)_/¯
+
 # Terraform
 This has been written using [Terraform](https://learn.hashicorp.com/collections/terraform/aws-get-started "Terraform") `v0.14.8` (see [provider.tf](./provider.tf "provider.tf")) but should work fine with any version from v0.12 onwards.
 
