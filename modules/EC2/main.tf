@@ -4,7 +4,6 @@
 
 #
 # a bit blunt, but for what we need this should mean any region will work...
-# ami-0b6b51e397faf2316
 #
 data "aws_ami" "ssh" {
   most_recent = true
@@ -40,7 +39,7 @@ resource "aws_instance" "ssh" {
   # when this
   #
   depends_on = [
-    aws_iam_instance_profile.ssh, aws_iam_role.ssh, aws_cloudwatch_log_group.ssh
+    aws_iam_instance_profile.ssh, aws_iam_role.ssh
   ]
 }
 
@@ -151,18 +150,5 @@ data "aws_iam_policy_document" "instance-assume-role-policy" {
       type        = "Service"
       identifiers = ["ec2.amazonaws.com"]
     }
-  }
-}
-
-#
-# Create the CloudWatch Log Group
-#
-resource "aws_cloudwatch_log_group" "ssh" {
-  name              = var.log_group_name
-  retention_in_days = "1"
-
- tags = {
-    Name              = var.tag_Name
-    "cost:allocation" = var.tag_cost_allocation
   }
 }

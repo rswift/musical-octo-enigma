@@ -77,7 +77,7 @@ So, the main goal. If you've successfully created the VPC and EC2 instance plus 
 
 ## Via the AWS Console
 Log on to the AWS console and navigate to the [Session Manager](https://eu-west-2.console.aws.amazon.com/systems-manager/session-manager/start-session?region=eu-west-2
- "AWS Session Manager") console. There should be an instance with the name `SSH no port 22` (unless you've changed the configuration), so click the radio button and then the big orange `Start Session` button - a terminal window will open in a browser tab and you'll have the EC2 command line available to you...
+ "AWS Session Manager") console. There should be an instance with the name `SSH no SSH` (unless you've changed the configuration), so click the radio button and then the big orange `Start Session` button - a terminal window will open in a browser tab and you'll have the EC2 command line available to you...
 
 ## Via the Command Line
 To use the command line, the session manager plugin is needed, see [this documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html "Session Manager plugin"), so assuming you've got that and the CLI is installed, you can retrieve running instances:

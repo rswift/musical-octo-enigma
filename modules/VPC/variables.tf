@@ -15,7 +15,7 @@ variable "private_subnet_cidr_block" {
 # Tags
 #
 variable "tag_Name" {
-  default     = "SSH without port 22"
+  default     = "SSH no SSH"
   description = "Friendly name for the VPC"
 }
 variable "tag_cost_allocation" {
