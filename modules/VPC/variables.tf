@@ -19,5 +19,14 @@ variable "tag_Name" {
   description = "Friendly name for the VPC"
 }
 variable "tag_cost_allocation" {
-  description = "Where costs for the resource should be charged to"
+  description = "Where costs for the resource should be charged to?"
 }
+variable "tag_resource_context" {
+  default     = "sandbox"
+  description = "What is this resources for?"
+}
+
+#
+# Region
+#
+data "aws_region" "current" {}

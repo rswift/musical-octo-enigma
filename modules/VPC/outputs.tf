@@ -8,7 +8,12 @@ output "private_subnet_id" {
   description = "ID of the private subnet"
 }
 
-output "security_group_id" {
-    value       = aws_security_group.ssh.id
-    description = "ID of the newly created Security Group"
+output "ec2_security_group_id" {
+    value       = aws_security_group.ec2.id
+    description = "ID of the newly created Security Group for the EC2 instance"
+}
+
+output "vpce_security_group_id" {
+    value       = aws_security_group.vpce.id
+    description = "ID of the newly created Security Group for the VPC Endpoints"
 }

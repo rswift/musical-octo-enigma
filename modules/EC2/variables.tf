@@ -37,6 +37,10 @@ variable "tag_cost_allocation" {
   default     = "work"
   description = "Where costs for the resource should be charged to"
 }
+variable "tag_resource_context" {
+  default     = "sandbox"
+  description = "What is this resources for?"
+}
 
 #
 # AWS Account Number: data.aws_caller_identity.current.account_id

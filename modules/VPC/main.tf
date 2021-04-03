@@ -1,25 +1,23 @@
 #
-# The VPC will have a single private subnet, no routes in the route table, a security group
-# that does not permit traffic and 
+# The VPC will have a single private subnet, no Internet gateway, VPC Endpoints to the
+# required services (EC2, EC2 Messages, SSM, SSM Messages, Logs & S3) and two security
+# groups, one for isolating the EC2 instance, the other for the VPC Endpoints (although
+# I'm quite sure, for this demo, just one would do)... The VPC Endpoints don't have
+# policies
 #
 
 #
-# The 2x CIDR ranges included below were reverse engineered and are
-# only included because they are needed to make this demo work...
-#
-# But why? In a production context, a VPC Endpoint would be used in
-# order to enable network connectivity into the private subnet, but
-# for the demo, this isn't realistic as it'd also need things like
-# a VPN ingress and associated configuration, which isn't realistic
-# for the demo, so in order to make it work, but without adding an
-# entry like 0.0.0.0/0
-#
-# From https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html
-
 # Add to the list as required if required...
 #
 locals {
-  aws_cidr_ranges = ["52.94.48.0/20", "52.95.150.0/24"]
+  vpc_endpoints = {
+    ssm = "SSM"
+    ssmmessages = "SSM Messages"
+    ec2 = "EC2"
+    ec2messages = "EC2 Messages"
+    logs = "CloudWatch Logs"
+###    kms = "KMS"
+  }
 }
 
 resource "aws_vpc" "ssh" {
@@ -43,51 +41,52 @@ resource "aws_subnet" "private" {
 }
 
 #
-# Build the prefix list, see locals above...
+# VPC Endpoints
 #
-resource "aws_ec2_managed_prefix_list" "ssh" {
-  name           = "AWS Ports for SSM"
-  address_family = "IPv4"
-  max_entries    = length(local.aws_cidr_ranges)
+resource "aws_vpc_endpoint" "ssh_interfaces" {
+  vpc_id     = aws_vpc.ssh.id
+  subnet_ids = [ aws_subnet.private.id ]
 
-  dynamic "entry" {
-    for_each = local.aws_cidr_ranges
-    content {
-      cidr = entry.value
-      description = "AWS CIDR Range for ssm, ssmmessages & ec2messages"
-    }
-  }
+  for_each = local.vpc_endpoints
+  service_name = "com.amazonaws.${data.aws_region.current.name}.${each.key}"
+
+  vpc_endpoint_type   = "Interface"
+  security_group_ids  = [ aws_security_group.vpce.id ]
+  private_dns_enabled = true
 
   tags = {
-    Name = "SSH"
+    Name               = each.value
+    "cost:allocation"  = var.tag_cost_allocation
+    "resource:context" = var.tag_resource_context
   }
 }
 
 #
-# An Internet Gateway is needed as part of the workaround/hack in relation
-# to local.aws_cidr_range, see above...
+# The S3 access is needed because at the time of writing, the SSM Agent in the
+# Amazon Linux 2 instance doesn't have the version that supports streaming
+# commands... shame, but the version needs to be 3.0.356.0 or above:
+# https://github.com/aws/amazon-ssm-agent/blob/mainline/RELEASENOTES.md#303560
 #
-resource "aws_internet_gateway" "ssh" {
+resource "aws_vpc_endpoint" "ssh_s3gateway" {
   vpc_id = aws_vpc.ssh.id
 
+  service_name = "com.amazonaws.${data.aws_region.current.name}.s3"
+
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [ aws_route_table.ssh.id ]
+
   tags = {
-    Name = "SSH"
+    Name               = "S3 Gateway"
+    "cost:allocation"  = var.tag_cost_allocation
+    "resource:context" = var.tag_resource_context
   }
 }
 
 #
-# Routing, again, see the commentary with the local.aws_cidr_range
+# Routing
 #
 resource "aws_route_table" "ssh" {
   vpc_id = aws_vpc.ssh.id
-
-  dynamic "route" {
-    for_each = local.aws_cidr_ranges
-    content {
-      cidr_block = route.value
-      gateway_id = aws_internet_gateway.ssh.id
-    }
-  }
 
   tags = {
     Name = "SSH"
@@ -100,24 +99,82 @@ resource "aws_main_route_table_association" "ssh" {
 }
 
 #
-# For demo purposes, permit absolutely no ingress or egress
+# Security Groups, because they are circular, so
+# define 'em empty, then add the rules
 #
-resource "aws_security_group" "ssh" {
-  name        = "allow_nothing"
-  description = "Allow no traffic in, and only out to the ssm, ssmmessages & ec2messages endpoints"
+resource "aws_security_group" "ec2" {
+  name        = "for_ec2"
+  description = "Permit HTTPS to & from the VPC Endpoints"
   vpc_id      = aws_vpc.ssh.id
 
-  egress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    prefix_list_ids = [aws_ec2_managed_prefix_list.ssh.id]
-    description = "Outbound only for ssm, ssmmessages & ec2messages"
-  }
-
   tags = {
-    Name              = "Allow Nothing"
+    Name              = "For EC2"
     "cost:allocation" = var.tag_cost_allocation
   }
 }
 
+resource "aws_security_group_rule" "ingress_https_from_vpce" {
+  type        = "ingress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  description = "Inbound from the Interface VPC Endpoints"
+
+  security_group_id        = aws_security_group.ec2.id
+  source_security_group_id = aws_security_group.vpce.id
+}
+
+resource "aws_security_group_rule" "egress_https_to_vpce" {
+  type        = "egress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  description = "Outbound to the Interface VPC Endpoints"
+
+  security_group_id        = aws_security_group.ec2.id
+  source_security_group_id = aws_security_group.vpce.id
+}
+
+resource "aws_security_group_rule" "egress_https_to_s3gateway" {
+  type            = "egress"
+  from_port       = 443
+  to_port         = 443
+  protocol        = "tcp"
+  prefix_list_ids = [ aws_vpc_endpoint.ssh_s3gateway.prefix_list_id ]
+  description     = "Outbound to the S3 Gateway VPC Endpoint"
+
+  security_group_id        = aws_security_group.ec2.id
+}
+
+resource "aws_security_group" "vpce" {
+  name        = "for_vpce"
+  description = "Permit HTTPS to & from the EC2 instance"
+  vpc_id      = aws_vpc.ssh.id
+
+  tags = {
+    Name              = "For VPC Endpoints"
+    "cost:allocation" = var.tag_cost_allocation
+  }
+}
+
+resource "aws_security_group_rule" "ingress_https_from_ec2" {
+  type        = "ingress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  description = "Inbound from the EC2 instance"
+
+  security_group_id        = aws_security_group.vpce.id
+  source_security_group_id = aws_security_group.ec2.id
+}
+
+resource "aws_security_group_rule" "egress_https_to_ec2" {
+  type        = "egress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  description = "Outbound to the EC2 instance"
+
+  security_group_id        = aws_security_group.vpce.id
+  source_security_group_id = aws_security_group.ec2.id
+}

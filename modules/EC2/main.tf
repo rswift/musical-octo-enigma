@@ -21,17 +21,26 @@ resource "aws_instance" "ssh" {
   subnet_id     = var.subnet_id
 
   #
-  # Only needed for demo purposes, otherwise this'd be false and behind a VPC Endpoint...
+  # For the avoidance of doubt...
   #
-  associate_public_ip_address = true
+  associate_public_ip_address = false
+
+  #
+  # As of today, an update is needed to the SSM Agent to get a version that supports
+  # streaming to CloudWatch Logs...
+  #
+  # See: https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-al2.html
+  #
+  user_data = file("${path.module}/update-ssm-agent.sh")
 
   iam_instance_profile                 = aws_iam_instance_profile.ssh.name
   instance_initiated_shutdown_behavior = var.shutdown_behaviour
   vpc_security_group_ids               = var.security_group_id
 
   tags = {
-    Name              = var.tag_Name
-    "cost:allocation" = var.tag_cost_allocation
+    Name               = var.tag_Name
+    "cost:allocation"  = var.tag_cost_allocation
+    "resource:context" = var.tag_resource_context
   }
 
   #
